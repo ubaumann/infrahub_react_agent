@@ -107,7 +107,6 @@ def discover_apis(dummy_input: str = None) -> dict:
     except Exception as e:
         return {"error": f"An error occurred while loading the APIs: {str(e)}"}
 
-
 @tool
 def check_supported_url_tool(api_url: str) -> dict:
     """Check if an API URL or Name is supported by NetBox."""
@@ -125,7 +124,6 @@ def check_supported_url_tool(api_url: str) -> dict:
         }
     return result
 
-
 @tool
 def get_netbox_data_tool(api_url: str) -> dict:
     """Fetch data from NetBox."""
@@ -140,7 +138,6 @@ def get_netbox_data_tool(api_url: str) -> dict:
         return {"error": f"Failed to fetch data from NetBox: {str(e)}"}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
-
 
 @tool
 def create_netbox_data_tool(input: str) -> dict:
@@ -164,7 +161,6 @@ def create_netbox_data_tool(input: str) -> dict:
     except Exception as e:
         return {"error": f"An error occurred in create_netbox_data_tool: {str(e)}"}
 
-
 @tool
 def delete_netbox_data_tool(api_url: str) -> dict:
     """Delete data from NetBox."""
@@ -178,7 +174,6 @@ def delete_netbox_data_tool(api_url: str) -> dict:
         return {"error": f"Failed to delete data from NetBox: {str(e)}"}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
-
 
 def process_agent_response(response):
     if response and response.get("status") == "supported" and "next_tool" in response.get("action", {}):
@@ -333,7 +328,6 @@ def chat_page():
                 )
             except Exception as e:
                 st.write(f"An error occurred: {str(e)}")
-
 
 # Page Navigation
 if 'page' not in st.session_state:
