@@ -1,0 +1,12 @@
+version: '3.6'
+
+services:
+  netbox_react_agent:
+    image: johncapobianco/netbox_react_agent:netbox_react_agent
+    container_name: netbox_react_agent
+    restart: always
+    build: 
+      context: ./
+      dockerfile: ./docker/Dockerfile   
+    ports:
+      - "8501:8501"
