@@ -279,7 +279,7 @@ def initialize_agent():
 
 def chat_page():
     st.title("Chat with NetBox AI Agent")
-    user_input = st.text_input("Ask NetBox a question:")
+    user_input = st.text_input("Ask NetBox a question:", key="user_input")
 
     # Ensure the agent is initialized
     if "OPENAI_API_KEY" not in st.session_state:
@@ -289,6 +289,7 @@ def chat_page():
 
     initialize_agent()
 
+    # Initialize session state variables if not already set
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = ""
 
@@ -327,7 +328,16 @@ def chat_page():
                     [f"{entry['role'].capitalize()}: {entry['content']}" for entry in st.session_state.conversation]
                 )
             except Exception as e:
-                st.write(f"An error occurred: {str(e)}")
+                st.error(f"An error occurred: {str(e)}")
+
+    # Display conversation history
+    if st.session_state.conversation:
+        st.markdown("### Conversation History")
+        for entry in st.session_state.conversation:
+            if entry["role"] == "user":
+                st.markdown(f"**User:** {entry['content']}")
+            elif entry["role"] == "assistant":
+                st.markdown(f"**NetBox AI ReAct Agent:** {entry['content']}")
 
 # Page Navigation
 if 'page' not in st.session_state:
