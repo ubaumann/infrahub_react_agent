@@ -1,2 +1,2 @@
-cd netbox_react_agent
-streamlit run netbox_react_agent.py
+cd infrahub_react_agent
+streamlit run infrahub_react_agent.py

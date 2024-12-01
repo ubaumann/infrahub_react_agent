@@ -1,9 +1,13 @@
-# netbox_react_agent
-An artificial intelligence ReAct Agent for NetBox 
+# infrahub_react_agent
+An artificial intelligence ReAct Agent for Infrahub by OpsMill 
 
-Welcome to the NetBox AI Agent project! This application provides a natural language interface for interacting with NetBox APIs, enabling CRUD (Create, Read, Update, Delete) operations through an intuitive chat-like interface powered by AI.
+Welcome to the Infrahub AI Agent project! This application provides a natural language interface for interacting with Infrahub APIs, enabling CRUD (Create, Read, Update, Delete) operations through an intuitive chat-like interface powered by AI.
 
-This project simplifies network management by combining AI-driven agents with the NetBox API to streamline and automate common network tasks.
+This project simplifies network management by combining AI-driven agents with the Infrahub API to streamline and automate common network tasks.
+
+## Disclamer
+
+This is a fork from [https://github.com/automateyournetwork/netbox_react_agent](https://github.com/automateyournetwork/netbox_react_agent) by John Capobianco. The original project was focusing on NetBox and this is an early draft to adapt it for Infrahub. Do not use it in production. 
 
 ## Branches Overview
 
@@ -11,7 +15,7 @@ This project simplifies network management by combining AI-driven agents with th
 
 Powered by ChatGPT (gpt-4o)
 
-Requires OpenAI API Key
+**Requires OpenAI API Key**
 
 Offers high accuracy and performance for handling natural language queries.
 
@@ -19,52 +23,36 @@ Recommended for production use.
 
 API costs apply.
 
-### Ollama Branch
-
-Powered by Local LLM using Ollama
-
-Completely free and private: All computations happen locally.
-
-No external API calls required.
-
-Performance: Works well for basic tasks but is less sophisticated compared to the ChatGPT-based version.
-
-Recommended for personal or offline use cases.
-
 ## Features
 
-Natural Language Interface: Interact with NetBox APIs using plain English commands.
+Natural Language Interface: Interact with Infrahub APIs using plain English commands.
 
-CRUD Operations: Perform Create, Read, Update, and Delete tasks on your NetBox data.
+CRUD Operations: Perform Create, Read, Update, and Delete tasks on your Infrahub data.
 
-API Validation: Ensures commands align with supported NetBox API endpoints.
+*API Validation: Ensures commands align with supported Infrahub API endpoints.*
 
 Dynamic Tools: Auto-detects and leverages the appropriate tools for each task.
-
-Local or Cloud Options: Choose between the main branch for high performance or the Ollama branch for privacy and offline capabilities.
 
 ## Setup Instructions
 
 ### Prerequisites
-Docker and Docker Compose installed.
 
-OpenAI API Key (for the main branch).
-
-Optional: Ollama installed for the local branch.
+- Docker and Docker Compose installed.
+- OpenAI API Key
 
 ## Quick Start
 
 ### Clone the Repository
 
 ``` bash
-git clone https://github.com/<your-repo-name>/netbox-ai-agent.git
-cd netbox-ai-agent
+git clone https://github.com/ubaumann/infrahub_react_agent.git
+cd infrahub_ai_agent
 ```
 
 ### Run the Application
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 ### Access the App
@@ -75,14 +63,11 @@ Configure API Keys
 
 ## For the main branch:
 
-Provide your NetBox API URL, NetBox Token, and OpenAI API Key in the configuration page.
-
-## For the Ollama branch:
-Provide only your NetBox API URL and NetBox Token.
+Provide your Infrahub Base URL, Infrahub Token, and OpenAI API Key in the configuration page.
 
 # Start Chatting
 
-Use natural language to manage your NetBox data. Example commands:
+Use natural language to manage your Infrahub data. Example commands:
 
 "Fetch all devices in the DC1 site."
 
@@ -90,29 +75,11 @@ Use natural language to manage your NetBox data. Example commands:
 
 ## Key Components
 
-NetBoxController: Manages interactions with the NetBox API.
+InfrahubController: Manages interactions with the Infrahub API.
 
 LangChain ReAct Agent: Dynamically selects tools to process natural language queries.
 
 Streamlit Interface: Provides an intuitive chat-like web UI.
-
-## FAQs
-
-Q: Which branch should I use?
-
-Use the main branch for production-grade performance and OpenAI's latest capabilities.
-
-Use the Ollama branch for offline and private operations, but expect reduced performance.
-
-Q: How do I switch between branches?
-
-To use the Ollama branch, run:
-
-```bash
-git checkout ollama
-```
-
-Then re-run the Docker setup.
 
 ## Troubleshooting
 
@@ -120,4 +87,4 @@ Docker Issues: Ensure Docker is running and your system meets the necessary prer
 
 OpenAI Key Errors: Check that your API key is valid and added correctly.
 
-NetBox API Errors: Verify your NetBox instance is accessible, and the API token has the required permissions.
+Infrahub API Errors: Verify your Infrahub instance is accessible, and the API token has the required permissions.

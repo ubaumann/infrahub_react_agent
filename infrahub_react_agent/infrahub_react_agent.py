@@ -18,10 +18,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 llm = None
 agent_executor = None
 
-# NetBoxController for CRUD Operations
-class NetBoxController:
-    def __init__(self, netbox_url, api_token):
-        self.netbox = netbox_url.rstrip('/')
+# InfrahubController for CRUD Operations
+class InfrahubController:
+    def __init__(self, infrahub_url, api_token):
+        self.infrahub = infrahub_url.rstrip('/')
         self.api_token = api_token
         self.headers = {
             'Accept': 'application/json',
@@ -30,7 +30,7 @@ class NetBoxController:
 
     def get_api(self, api_url: str, params: dict = None):
         response = requests.get(
-            f"{self.netbox}{api_url}",
+            f"{self.infrahub}{api_url}",
             headers=self.headers,
             params=params,
             verify=False
@@ -40,7 +40,7 @@ class NetBoxController:
 
     def post_api(self, api_url: str, payload: dict):
         response = requests.post(
-            f"{self.netbox}{api_url}",
+            f"{self.infrahub}{api_url}",
             headers=self.headers,
             json=payload,
             verify=False
@@ -50,7 +50,7 @@ class NetBoxController:
 
     def delete_api(self, api_url: str):
         response = requests.delete(
-            f"{self.netbox}{api_url}",
+            f"{self.infrahub}{api_url}",
             headers=self.headers,
             verify=False
         )
@@ -59,7 +59,7 @@ class NetBoxController:
 
 
 # Function to load supported URLs with their names from a JSON file
-def load_urls(file_path='netbox_apis.json'):
+def load_urls(file_path='infrahub_apis.json'):
     if not os.path.exists(file_path):
         return {"error": f"URLs file '{file_path}' not found."}
     try:
@@ -93,15 +93,15 @@ def check_url_support(api_url: str) -> dict:
         return {"status": "unsupported", "message": f"The input '{api_url}' is not supported."}
 
 
-# Tools for interacting with NetBox
+# Tools for interacting with infrahub
 @tool
 def discover_apis(dummy_input: str = None) -> dict:
-    """Discover available NetBox APIs from a local JSON file."""
+    """Discover available infrahub APIs from a local JSON file."""
     try:
-        if not os.path.exists("netbox_apis.json"):
-            return {"error": "API JSON file not found. Please ensure 'netbox_apis.json' exists in the project directory."}
+        if not os.path.exists("infrahub_apis.json"):
+            return {"error": "API JSON file not found. Please ensure 'infrahub_apis.json' exists in the project directory."}
         
-        with open("netbox_apis.json", "r") as f:
+        with open("infrahub_apis.json", "r") as f:
             data = json.load(f)
         return {"apis": data, "message": "APIs successfully loaded from JSON file"}
     except Exception as e:
@@ -109,7 +109,7 @@ def discover_apis(dummy_input: str = None) -> dict:
 
 @tool
 def check_supported_url_tool(api_url: str) -> dict:
-    """Check if an API URL or Name is supported by NetBox."""
+    """Check if an API URL or Name is supported by infrahub."""
     result = check_url_support(api_url)
     if result.get('status') == 'supported':
         closest_url = result['closest_url']
@@ -118,30 +118,30 @@ def check_supported_url_tool(api_url: str) -> dict:
             "status": "supported",
             "message": f"The closest supported API URL is '{closest_url}' ({closest_name}).",
             "action": {
-                "next_tool": "get_netbox_data_tool",
+                "next_tool": "get_infrahub_data_tool",
                 "input": closest_url
             }
         }
     return result
 
 @tool
-def get_netbox_data_tool(api_url: str) -> dict:
-    """Fetch data from NetBox."""
+def get_infrahub_data_tool(api_url: str) -> dict:
+    """Fetch data from Infrahub."""
     try:
-        netbox_controller = NetBoxController(
-            netbox_url=os.getenv("NETBOX_URL"),
-            api_token=os.getenv("NETBOX_TOKEN")
+        infrahub_controller = InfrahubController(
+            infrahub_url=os.getenv("INFRAHUB_URL"),
+            api_token=os.getenv("INFRAHUB_TOKEN")
         )
-        data = netbox_controller.get_api(api_url)
+        data = infrahub_controller.get_api(api_url)
         return data
     except requests.HTTPError as e:
-        return {"error": f"Failed to fetch data from NetBox: {str(e)}"}
+        return {"error": f"Failed to fetch data from Infrahub: {str(e)}"}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
 
 @tool
-def create_netbox_data_tool(input: str) -> dict:
-    """Create new data in NetBox."""
+def create_infrahub_data_tool(input: str) -> dict:
+    """Create new data in Infrahub."""
     try:
         data = json.loads(input)
         api_url = data.get("api_url")
@@ -153,25 +153,25 @@ def create_netbox_data_tool(input: str) -> dict:
         if not isinstance(payload, dict):
             raise ValueError("Payload must be a dictionary.")
 
-        netbox_controller = NetBoxController(
-            netbox_url=os.getenv("NETBOX_URL"),
-            api_token=os.getenv("NETBOX_TOKEN")
+        infrahub_controller = InfrahubController(
+            infrahub_url=os.getenv("INFRAHUB_URL"),
+            api_token=os.getenv("INFRAHUB_TOKEN")
         )
-        return netbox_controller.post_api(api_url, payload)
+        return infrahub_controller.post_api(api_url, payload)
     except Exception as e:
-        return {"error": f"An error occurred in create_netbox_data_tool: {str(e)}"}
+        return {"error": f"An error occurred in create_infrahub_data_tool: {str(e)}"}
 
 @tool
-def delete_netbox_data_tool(api_url: str) -> dict:
-    """Delete data from NetBox."""
+def delete_infrahub_data_tool(api_url: str) -> dict:
+    """Delete data from Infrahub."""
     try:
-        netbox_controller = NetBoxController(
-            netbox_url=os.getenv("NETBOX_URL"),
-            api_token=os.getenv("NETBOX_TOKEN")
+        infrahub_controller = InfrahubController(
+            infrahub_url=os.getenv("INFRAHUB_URL"),
+            api_token=os.getenv("INFRAHUB_TOKEN")
         )
-        return netbox_controller.delete_api(api_url)
+        return infrahub_controller.delete_api(api_url)
     except requests.HTTPError as e:
-        return {"error": f"Failed to delete data from NetBox: {str(e)}"}
+        return {"error": f"Failed to delete data from Infrahub: {str(e)}"}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
 
@@ -195,20 +195,20 @@ def process_agent_response(response):
 # ============================================================
 
 def configure_page():
-    st.title("NetBox Configuration")
-    base_url = st.text_input("NetBox URL", placeholder="https://demo.netbox.dev")
-    api_token = st.text_input("NetBox API Token", type="password", placeholder="Your API Token")
+    st.title("Infrahub Configuration")
+    base_url = st.text_input("Infrahub URL", placeholder="http://localhost:8000")
+    api_token = st.text_input("Infrahub API Token", type="password", placeholder="Your API Token")
     openai_key = st.text_input("OpenAI API Key", type="password", placeholder="Your OpenAI API Key")
 
     if st.button("Save and Continue"):
         if not base_url or not api_token or not openai_key:
             st.error("All fields are required.")
         else:
-            st.session_state['NETBOX_URL'] = base_url
-            st.session_state['NETBOX_TOKEN'] = api_token
+            st.session_state['INFRAHUB_URL'] = base_url
+            st.session_state['INFRAHUB_TOKEN'] = api_token
             st.session_state['OPENAI_API_KEY'] = openai_key
-            os.environ['NETBOX_URL'] = base_url
-            os.environ['NETBOX_TOKEN'] = api_token
+            os.environ['INFRAHUB_URL'] = base_url
+            os.environ['INFRAHUB_TOKEN'] = api_token
             os.environ['OPENAI_API_KEY'] = openai_key
             st.success("Configuration saved! Redirecting to chat...")
             st.session_state['page'] = "chat"
@@ -220,24 +220,24 @@ def initialize_agent():
         llm = ChatOpenAI(model_name="gpt-4o", openai_api_key=st.session_state['OPENAI_API_KEY'])
 
         # Define tools
-        tools = [discover_apis, check_supported_url_tool, get_netbox_data_tool, create_netbox_data_tool, delete_netbox_data_tool]
+        tools = [discover_apis, check_supported_url_tool, get_infrahub_data_tool, create_infrahub_data_tool, delete_infrahub_data_tool]
 
         # Create the prompt template
         tool_descriptions = render_text_description(tools)
         # Create the PromptTemplate
         template = """
-        Assistant is a network assistant capable of managing NetBox data using CRUD operations.
+        Assistant is a network assistant capable of managing Infrahub data using CRUD operations.
 
         TOOLS:
-        - discover_apis: Discovers available NetBox APIs from a local JSON file.
-        - check_supported_url_tool: Checks if an API URL or Name is supported by NetBox.
-        - get_netbox_data_tool: Fetches data from NetBox using the specified API URL.
-        - create_netbox_data_tool: Creates new data in NetBox using the specified API URL and payload.
-        - delete_netbox_data_tool: Deletes data from NetBox using the specified API URL.
+        - discover_apis: Discovers available Infrahub APIs from a local JSON file.
+        - check_supported_url_tool: Checks if an API URL or Name is supported by Infrahub.
+        - get_infrahub_data_tool: Fetches data from Infrahub using the specified API URL.
+        - create_infrahub_data_tool: Creates new data in Infrahub using the specified API URL and payload.
+        - delete_infrahub_data_tool: Deletes data from Infrahub using the specified API URL.
 
         GUIDELINES:
         1. Use 'check_supported_url_tool' to validate ambiguous or unknown URLs or Names.
-        2. If certain about the URL, directly use 'get_netbox_data_tool', 'create_netbox_data_tool', or 'delete_netbox_data_tool'.
+        2. If certain about the URL, directly use 'get_infrahub_data_tool', 'create_infrahub_data_tool', or 'delete_infrahub_data_tool'.
         3. Follow a structured response format to ensure consistency.
 
         FORMAT:
@@ -278,12 +278,12 @@ def initialize_agent():
         )
 
 def chat_page():
-    st.title("Chat with NetBox AI Agent")
-    user_input = st.text_input("Ask NetBox a question:", key="user_input")
+    st.title("Chat with Infrahub AI Agent")
+    user_input = st.text_input("Ask Infrahub a question:", key="user_input")
 
     # Ensure the agent is initialized
     if "OPENAI_API_KEY" not in st.session_state:
-        st.error("Please configure NetBox and OpenAI settings first!")
+        st.error("Please configure Infrahub and OpenAI settings first!")
         st.session_state['page'] = "configure"
         return
 
@@ -337,7 +337,7 @@ def chat_page():
             if entry["role"] == "user":
                 st.markdown(f"**User:** {entry['content']}")
             elif entry["role"] == "assistant":
-                st.markdown(f"**NetBox AI ReAct Agent:** {entry['content']}")
+                st.markdown(f"**Infrahub AI ReAct Agent:** {entry['content']}")
 
 # Page Navigation
 if 'page' not in st.session_state:
