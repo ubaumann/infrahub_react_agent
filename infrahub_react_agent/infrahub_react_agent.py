@@ -1,10 +1,14 @@
 import os
 import json
 import logging
+
+import config
+
 import requests
 import difflib
 import streamlit as st
 from langchain_community.chat_models import ChatOpenAI
+from langchain_community.agent_toolkits.openapi.spec import reduce_openapi_spec, ReducedOpenAPISpec
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain_core.tools import tool, render_text_description
@@ -18,14 +22,17 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 llm = None
 agent_executor = None
 
+
+logger = logging.getLogger(__name__)
+
 # InfrahubController for CRUD Operations
 class InfrahubController:
     def __init__(self, infrahub_url, api_token):
-        self.infrahub = infrahub_url.rstrip('/')
+        self.infrahub = infrahub_url.rstrip("/")
         self.api_token = api_token
         self.headers = {
-            'Accept': 'application/json',
-            'Authorization': f"Token {self.api_token}",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.api_token}",
         }
 
     def get_api(self, api_url: str, params: dict = None):
@@ -33,7 +40,7 @@ class InfrahubController:
             f"{self.infrahub}{api_url}",
             headers=self.headers,
             params=params,
-            verify=False
+            verify=False,
         )
         response.raise_for_status()
         return response.json()
@@ -43,54 +50,57 @@ class InfrahubController:
             f"{self.infrahub}{api_url}",
             headers=self.headers,
             json=payload,
-            verify=False
+            verify=False,
         )
         response.raise_for_status()
         return response.json()
 
     def delete_api(self, api_url: str):
         response = requests.delete(
-            f"{self.infrahub}{api_url}",
-            headers=self.headers,
-            verify=False
+            f"{self.infrahub}{api_url}", headers=self.headers, verify=False
         )
         response.raise_for_status()
         return response.json()
 
 
+def _load_openapi(file_path=config.open_api_file):
+    with open(file_path, "r") as f:
+        schema = json.load(f)
+        schema["servers"] = {"url": "http://asdf"}
+        data = reduce_openapi_spec(schema)
+    return data
+
 # Function to load supported URLs with their names from a JSON file
-def load_urls(file_path='infrahub_apis.json'):
+def load_urls(file_path=config.open_api_file):
     if not os.path.exists(file_path):
+        logger.warning(f"URLs file '{file_path}' not found.")
         return {"error": f"URLs file '{file_path}' not found."}
     try:
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-        return [(entry['URL'], entry.get('Name', '')) for entry in data]
+        return _load_openapi(file_path)
     except Exception as e:
+        logger.warning(f"Error loading URLs: {str(e)}")
         return {"error": f"Error loading URLs: {str(e)}"}
 
 
 def check_url_support(api_url: str) -> dict:
     url_list = load_urls()
-    if "error" in url_list:
-        return url_list  # Return error if loading URLs failed
+    # split operation and route and only take route/url
+    if isinstance(url_list, ReducedOpenAPISpec):
+        urls = [route.split()[-1] for route, _, _ in url_list.endpoints]
 
-    urls = [entry[0] for entry in url_list]
-    names = [entry[1] for entry in url_list]
+        close_url_matches = difflib.get_close_matches(api_url, urls, n=1, cutoff=0.6)
 
-    close_url_matches = difflib.get_close_matches(api_url, urls, n=1, cutoff=0.6)
-    close_name_matches = difflib.get_close_matches(api_url, names, n=1, cutoff=0.6)
-
-    if close_url_matches:
-        closest_url = close_url_matches[0]
-        matching_name = [entry[1] for entry in url_list if entry[0] == closest_url][0]
-        return {"status": "supported", "closest_url": closest_url, "closest_name": matching_name}
-    elif close_name_matches:
-        closest_name = close_name_matches[0]
-        closest_url = [entry[0] for entry in url_list if entry[1] == closest_name][0]
-        return {"status": "supported", "closest_url": closest_url, "closest_name": closest_name}
-    else:
-        return {"status": "unsupported", "message": f"The input '{api_url}' is not supported."}
+        if close_url_matches:
+            closest_url = close_url_matches[0]
+            return {
+                "status": "supported",
+                "closest_url": closest_url,
+            }
+    logger.warning(f"The input '{api_url}' is not supported.")
+    return {
+        "status": "unsupported",
+        "message": f"The input '{api_url}' is not supported.",
+    }
 
 
 # Tools for interacting with infrahub
@@ -98,31 +108,34 @@ def check_url_support(api_url: str) -> dict:
 def discover_apis(dummy_input: str = None) -> dict:
     """Discover available infrahub APIs from a local JSON file."""
     try:
-        if not os.path.exists("infrahub_apis.json"):
-            return {"error": "API JSON file not found. Please ensure 'infrahub_apis.json' exists in the project directory."}
-        
-        with open("infrahub_apis.json", "r") as f:
-            data = json.load(f)
-        return {"apis": data, "message": "APIs successfully loaded from JSON file"}
+        if not os.path.exists(config.open_api_file):
+            return {
+                "error": "API JSON file not found. Please ensure 'infrahub_apis.json' exists in the project directory."
+            }
+        with open(config.open_api_file) as fp:
+            schema = json.load(fp)
+        urls = []
+        for path, methods in schema.get("paths", {}).items():
+            for method, definition in methods.items():
+                urls.append((method, path, definition.get("summary"))) 
+        return {"apis": urls, "message": "APIs successfully loaded from JSON file"}
     except Exception as e:
         return {"error": f"An error occurred while loading the APIs: {str(e)}"}
+
 
 @tool
 def check_supported_url_tool(api_url: str) -> dict:
     """Check if an API URL or Name is supported by infrahub."""
     result = check_url_support(api_url)
-    if result.get('status') == 'supported':
-        closest_url = result['closest_url']
-        closest_name = result['closest_name']
+    if result.get("status") == "supported":
+        closest_url = result["closest_url"]
         return {
             "status": "supported",
-            "message": f"The closest supported API URL is '{closest_url}' ({closest_name}).",
-            "action": {
-                "next_tool": "get_infrahub_data_tool",
-                "input": closest_url
-            }
+            "message": f"The closest supported API URL is '{closest_url}'.",
+            "action": {"next_tool": "get_infrahub_data_tool", "input": closest_url},
         }
     return result
+
 
 @tool
 def get_infrahub_data_tool(api_url: str) -> dict:
@@ -130,7 +143,7 @@ def get_infrahub_data_tool(api_url: str) -> dict:
     try:
         infrahub_controller = InfrahubController(
             infrahub_url=os.getenv("INFRAHUB_URL"),
-            api_token=os.getenv("INFRAHUB_TOKEN")
+            api_token=os.getenv("INFRAHUB_TOKEN"),
         )
         data = infrahub_controller.get_api(api_url)
         return data
@@ -138,6 +151,7 @@ def get_infrahub_data_tool(api_url: str) -> dict:
         return {"error": f"Failed to fetch data from Infrahub: {str(e)}"}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
+
 
 @tool
 def create_infrahub_data_tool(input: str) -> dict:
@@ -155,11 +169,12 @@ def create_infrahub_data_tool(input: str) -> dict:
 
         infrahub_controller = InfrahubController(
             infrahub_url=os.getenv("INFRAHUB_URL"),
-            api_token=os.getenv("INFRAHUB_TOKEN")
+            api_token=os.getenv("INFRAHUB_TOKEN"),
         )
         return infrahub_controller.post_api(api_url, payload)
     except Exception as e:
         return {"error": f"An error occurred in create_infrahub_data_tool: {str(e)}"}
+
 
 @tool
 def delete_infrahub_data_tool(api_url: str) -> dict:
@@ -167,7 +182,7 @@ def delete_infrahub_data_tool(api_url: str) -> dict:
     try:
         infrahub_controller = InfrahubController(
             infrahub_url=os.getenv("INFRAHUB_URL"),
-            api_token=os.getenv("INFRAHUB_TOKEN")
+            api_token=os.getenv("INFRAHUB_TOKEN"),
         )
         return infrahub_controller.delete_api(api_url)
     except requests.HTTPError as e:
@@ -175,52 +190,74 @@ def delete_infrahub_data_tool(api_url: str) -> dict:
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
 
+
 def process_agent_response(response):
-    if response and response.get("status") == "supported" and "next_tool" in response.get("action", {}):
+    if (
+        response
+        and response.get("status") == "supported"
+        and "next_tool" in response.get("action", {})
+    ):
         next_tool = response["action"]["next_tool"]
         tool_input = response["action"]["input"]
 
         # Automatically invoke the next tool
-        return agent_executor.invoke({
-            "input": tool_input,
-            "chat_history": st.session_state.chat_history,
-            "agent_scratchpad": "",
-            "tool": next_tool
-        })
+        return agent_executor.invoke(
+            {
+                "input": tool_input,
+                "chat_history": st.session_state.chat_history,
+                "agent_scratchpad": "",
+                "tool": next_tool,
+            }
+        )
     else:
         return response
+
 
 # ============================================================
 # Streamlit App
 # ============================================================
 
+
 def configure_page():
     st.title("Infrahub Configuration")
     base_url = st.text_input("Infrahub URL", placeholder="http://localhost:8000")
-    api_token = st.text_input("Infrahub API Token", type="password", placeholder="Your API Token")
-    openai_key = st.text_input("OpenAI API Key", type="password", placeholder="Your OpenAI API Key")
+    api_token = st.text_input(
+        "Infrahub API Token", type="password", placeholder="Your API Token"
+    )
+    openai_key = st.text_input(
+        "OpenAI API Key", type="password", placeholder="Your OpenAI API Key"
+    )
 
     if st.button("Save and Continue"):
         if not base_url or not api_token or not openai_key:
             st.error("All fields are required.")
         else:
-            st.session_state['INFRAHUB_URL'] = base_url
-            st.session_state['INFRAHUB_TOKEN'] = api_token
-            st.session_state['OPENAI_API_KEY'] = openai_key
-            os.environ['INFRAHUB_URL'] = base_url
-            os.environ['INFRAHUB_TOKEN'] = api_token
-            os.environ['OPENAI_API_KEY'] = openai_key
+            st.session_state["INFRAHUB_URL"] = base_url
+            st.session_state["INFRAHUB_TOKEN"] = api_token
+            st.session_state["OPENAI_API_KEY"] = openai_key
+            os.environ["INFRAHUB_URL"] = base_url
+            os.environ["INFRAHUB_TOKEN"] = api_token
+            os.environ["OPENAI_API_KEY"] = openai_key
             st.success("Configuration saved! Redirecting to chat...")
-            st.session_state['page'] = "chat"
+            st.session_state["page"] = "chat"
+
 
 def initialize_agent():
     global llm, agent_executor
     if not llm:
         # Initialize the LLM with the API key from session state
-        llm = ChatOpenAI(model_name="gpt-4o", openai_api_key=st.session_state['OPENAI_API_KEY'])
+        llm = ChatOpenAI(
+            model_name="gpt-4o", openai_api_key=st.session_state["OPENAI_API_KEY"]
+        )
 
         # Define tools
-        tools = [discover_apis, check_supported_url_tool, get_infrahub_data_tool, create_infrahub_data_tool, delete_infrahub_data_tool]
+        tools = [
+            discover_apis,
+            check_supported_url_tool,
+            get_infrahub_data_tool,
+            create_infrahub_data_tool,
+            delete_infrahub_data_tool,
+        ]
 
         # Create the prompt template
         tool_descriptions = render_text_description(tools)
@@ -261,8 +298,8 @@ def initialize_agent():
             input_variables=["input", "chat_history", "agent_scratchpad"],
             partial_variables={
                 "tools": tool_descriptions,
-                "tool_names": ", ".join([t.name for t in tools])
-            }
+                "tool_names": ", ".join([t.name for t in tools]),
+            },
         )
 
         # Create the ReAct agent
@@ -274,8 +311,9 @@ def initialize_agent():
             tools=tools,
             handle_parsing_errors=True,
             verbose=True,
-            max_iterations=10
+            max_iterations=10,
         )
+
 
 def chat_page():
     st.title("Chat with Infrahub AI Agent")
@@ -284,7 +322,7 @@ def chat_page():
     # Ensure the agent is initialized
     if "OPENAI_API_KEY" not in st.session_state:
         st.error("Please configure Infrahub and OpenAI settings first!")
-        st.session_state['page'] = "configure"
+        st.session_state["page"] = "configure"
         return
 
     initialize_agent()
@@ -300,32 +338,41 @@ def chat_page():
     if st.button("Send"):
         if user_input:
             # Add the user input to the conversation history
-            st.session_state.conversation.append({"role": "user", "content": user_input})
+            st.session_state.conversation.append(
+                {"role": "user", "content": user_input}
+            )
 
             # Invoke the agent with the user input and current chat history
             try:
-                response = agent_executor.invoke({
-                    "input": user_input,
-                    "chat_history": st.session_state.chat_history,
-                    "agent_scratchpad": ""  # Initialize agent scratchpad as an empty string
-                })
+                response = agent_executor.invoke(
+                    {
+                        "input": user_input,
+                        "chat_history": st.session_state.chat_history,
+                        "agent_scratchpad": "",  # Initialize agent scratchpad as an empty string
+                    }
+                )
 
                 # Process the agent's response
                 final_response = process_agent_response(response)
 
                 # Extract the final answer
-                final_answer = final_response.get('output', 'No answer provided.')
+                final_answer = final_response.get("output", "No answer provided.")
 
                 # Display the question and answer
                 st.write(f"**Question:** {user_input}")
                 st.write(f"**Answer:** {final_answer}")
 
                 # Add the response to the conversation history
-                st.session_state.conversation.append({"role": "assistant", "content": final_answer})
+                st.session_state.conversation.append(
+                    {"role": "assistant", "content": final_answer}
+                )
 
                 # Update chat history with the new conversation
                 st.session_state.chat_history = "\n".join(
-                    [f"{entry['role'].capitalize()}: {entry['content']}" for entry in st.session_state.conversation]
+                    [
+                        f"{entry['role'].capitalize()}: {entry['content']}"
+                        for entry in st.session_state.conversation
+                    ]
                 )
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
@@ -339,11 +386,13 @@ def chat_page():
             elif entry["role"] == "assistant":
                 st.markdown(f"**Infrahub AI ReAct Agent:** {entry['content']}")
 
-# Page Navigation
-if 'page' not in st.session_state:
-    st.session_state['page'] = "configure"
 
-if st.session_state['page'] == "configure":
-    configure_page()
-elif st.session_state['page'] == "chat":
-    chat_page()
+if __name__ == "__main__":
+    # Page Navigation
+    if "page" not in st.session_state:
+        st.session_state["page"] = "configure"
+
+    if st.session_state["page"] == "configure":
+        configure_page()
+    elif st.session_state["page"] == "chat":
+        chat_page()
