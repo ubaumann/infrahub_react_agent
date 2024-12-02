@@ -15,10 +15,8 @@ RUN echo "==> Install dos2unix..." \
   && sudo apt-get install dos2unix -y 
 
 RUN echo "==> Install requirements.." \
-  && pip install -U pip \
-  && pip install --break-system-packages -U --quiet langchain_community \
-  && pip install --break-system-packages streamlit --upgrade \
-  && pip install --break-system-packages openai
+  && pip install -U --quiet pip \
+  && pip install --break-system-packages -U --quiet langchain_community streamlit openai infrahub-sdk
 
 COPY /infrahub_react_agent /infrahub_react_agent/
 COPY /scripts /scripts/

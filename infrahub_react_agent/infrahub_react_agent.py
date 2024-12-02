@@ -8,10 +8,14 @@ import requests
 import difflib
 import streamlit as st
 from langchain_community.chat_models import ChatOpenAI
-from langchain_community.agent_toolkits.openapi.spec import reduce_openapi_spec, ReducedOpenAPISpec
+from langchain_community.agent_toolkits.openapi.spec import (
+    reduce_openapi_spec,
+    ReducedOpenAPISpec,
+)
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain_core.tools import tool, render_text_description
+from infrahub_sdk import Config, InfrahubClientSync
 import urllib3
 
 # Configure logging
@@ -25,6 +29,7 @@ agent_executor = None
 
 logger = logging.getLogger(__name__)
 
+
 # InfrahubController for CRUD Operations
 class InfrahubController:
     def __init__(self, infrahub_url, api_token):
@@ -34,6 +39,10 @@ class InfrahubController:
             "Accept": "application/json",
             "Authorization": f"Bearer {self.api_token}",
         }
+        config = Config(
+            echo_graphql_queries=True, api_token=api_token, address=infrahub_url
+        )
+        self.client = InfrahubClientSync(config=config)
 
     def get_api(self, api_url: str, params: dict = None):
         response = requests.get(
@@ -62,13 +71,18 @@ class InfrahubController:
         response.raise_for_status()
         return response.json()
 
+    def graphql(self, query: str, at: str):
+        data = self.client.execute_graphql(query=query, at=at)
+        return data
+
 
 def _load_openapi(file_path=config.open_api_file):
     with open(file_path, "r") as f:
         schema = json.load(f)
-        schema["servers"] = {"url": "http://asdf"}
+        schema["servers"] = {"url": "http://asdf"}  # TODO
         data = reduce_openapi_spec(schema)
     return data
+
 
 # Function to load supported URLs with their names from a JSON file
 def load_urls(file_path=config.open_api_file):
@@ -117,7 +131,7 @@ def discover_apis(dummy_input: str = None) -> dict:
         urls = []
         for path, methods in schema.get("paths", {}).items():
             for method, definition in methods.items():
-                urls.append((method, path, definition.get("summary"))) 
+                urls.append((method, path, definition.get("summary")))
         return {"apis": urls, "message": "APIs successfully loaded from JSON file"}
     except Exception as e:
         return {"error": f"An error occurred while loading the APIs: {str(e)}"}
@@ -191,6 +205,19 @@ def delete_infrahub_data_tool(api_url: str) -> dict:
         return {"error": f"An unexpected error occurred: {str(e)}"}
 
 
+@tool
+def querry_infrahub_data(query: str, at: str = None) -> dict:
+    """Use GraphQL to querry data from infrahub. Use at to specify a Timestamp"""
+    try:
+        infrahub_controller = InfrahubController(
+            infrahub_url=os.getenv("INFRAHUB_URL"),
+            api_token=os.getenv("INFRAHUB_TOKEN"),
+        )
+        return infrahub_controller.graphql(query, at)
+    except Exception as e:
+        return {"error": f"An unexpected error occurred: {str(e)}"}
+
+
 def process_agent_response(response):
     if (
         response
@@ -219,7 +246,7 @@ def process_agent_response(response):
 
 
 def configure_page():
-    st.title("Infrahub Configuration")
+    st.title("🦦 Infrahub 🦦 Configuration")
     base_url = st.text_input("Infrahub URL", placeholder="http://localhost:8000")
     api_token = st.text_input(
         "Infrahub API Token", type="password", placeholder="Your API Token"
@@ -257,6 +284,7 @@ def initialize_agent():
             get_infrahub_data_tool,
             create_infrahub_data_tool,
             delete_infrahub_data_tool,
+            querry_infrahub_data,
         ]
 
         # Create the prompt template
@@ -271,6 +299,7 @@ def initialize_agent():
         - get_infrahub_data_tool: Fetches data from Infrahub using the specified API URL.
         - create_infrahub_data_tool: Creates new data in Infrahub using the specified API URL and payload.
         - delete_infrahub_data_tool: Deletes data from Infrahub using the specified API URL.
+        - querry_infrahub_data: Querring data from Infrahub using graphQL. Use the second 'at' parameter to defined a timestamp
 
         GUIDELINES:
         1. Use 'discover_apis' to discover possible API URLs.
@@ -313,13 +342,13 @@ def initialize_agent():
             tools=tools,
             handle_parsing_errors=True,
             verbose=True,
-            max_iterations=10,
+            max_iterations=15,
         )
 
 
 def chat_page():
-    st.title("Chat with Infrahub AI Agent")
-    user_input = st.text_input("Ask Infrahub a question:", key="user_input")
+    st.title("Chat with 🦦 Infrahub 🦦 AI Agent")
+    user_input = st.text_input("Ask otto a question:", key="user_input")
 
     # Ensure the agent is initialized
     if "OPENAI_API_KEY" not in st.session_state:
