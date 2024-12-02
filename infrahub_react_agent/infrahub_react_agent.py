@@ -273,9 +273,11 @@ def initialize_agent():
         - delete_infrahub_data_tool: Deletes data from Infrahub using the specified API URL.
 
         GUIDELINES:
-        1. Use 'check_supported_url_tool' to validate ambiguous or unknown URLs or Names.
-        2. If certain about the URL, directly use 'get_infrahub_data_tool', 'create_infrahub_data_tool', or 'delete_infrahub_data_tool'.
-        3. Follow a structured response format to ensure consistency.
+        1. Use 'discover_apis' to discover possible API URLs.
+        2. Use 'check_supported_url_tool' to validate ambiguous or unknown URLs or Names.
+        3. Avoid collecting the whole schema as it is too big. Use the summary and specific requests.
+        4. If certain about the URL, directly use 'get_infrahub_data_tool', 'create_infrahub_data_tool', or 'delete_infrahub_data_tool'.
+        5. Follow a structured response format to ensure consistency.
 
         FORMAT:
         Thought: [Your thought process]
