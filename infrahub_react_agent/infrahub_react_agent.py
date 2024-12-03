@@ -206,8 +206,8 @@ def delete_infrahub_data_tool(api_url: str) -> dict:
 
 
 @tool
-def querry_infrahub_data(query: str, timestamp: str = None) -> dict:
-    """Use GraphQL to querry data from infrahub. Use at to specify a Timestamp"""
+def query_infrahub_data(query: str, timestamp: str = None) -> dict:
+    """Use GraphQL to query data from infrahub. Use at to specify a Timestamp"""
 
     # Need a better way to validate query syntax
     if "`" in query:
@@ -289,7 +289,7 @@ def initialize_agent():
             get_infrahub_data_tool,
             create_infrahub_data_tool,
             delete_infrahub_data_tool,
-            querry_infrahub_data,
+            query_infrahub_data,
         ]
 
         # Create the prompt template
@@ -308,7 +308,7 @@ TOOLS:
 - get_infrahub_data_tool: Fetches data from Infrahub using the specified API URL.
 - create_infrahub_data_tool: Creates new data in Infrahub using the specified API URL and payload.
 - delete_infrahub_data_tool: Deletes data from Infrahub using the specified API URL.
-- querry_infrahub_data: Queries data from Infrahub using GraphQL. Accepts a query in string format and an optional timestamp (parsed with the Pendulum library) to retrieve historical data.
+- query_infrahub_data: Queries data from Infrahub using GraphQL. Accepts a query in string format and an optional timestamp (parsed with the Pendulum library) to retrieve historical data.
 
 GUIDELINES:
 1. **Response Format**:
@@ -353,7 +353,7 @@ GUIDELINES:
     ```
 
 4. **Temporal Data**:
-   - Infrahub supports temporal queries. When using `querry_infrahub_data`, optionally specify a timestamp for historical data retrieval. Use Pendulum to parse timestamps accurately.
+   - Infrahub supports temporal queries. When using `query_infrahub_data`, optionally specify a timestamp for historical data retrieval. Use Pendulum to parse timestamps accurately.
 
 5. **Tool Usage**:
    - Use `discover_apis` to find API URLs if needed.
