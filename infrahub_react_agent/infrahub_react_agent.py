@@ -206,14 +206,19 @@ def delete_infrahub_data_tool(api_url: str) -> dict:
 
 
 @tool
-def querry_infrahub_data(query: str, at: str = None) -> dict:
+def querry_infrahub_data(query: str, timestamp: str = None) -> dict:
     """Use GraphQL to querry data from infrahub. Use at to specify a Timestamp"""
+
+    # Need a better way to validate query syntax
+    if "`" in query:
+        return {"error": f"Do **not** wrap GraphQL queries or mutations in Markdown-style code blocks."}
+
     try:
         infrahub_controller = InfrahubController(
             infrahub_url=os.getenv("INFRAHUB_URL"),
             api_token=os.getenv("INFRAHUB_TOKEN"),
         )
-        return infrahub_controller.graphql(query, at)
+        return infrahub_controller.graphql(query, timestamp)
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
 
@@ -291,39 +296,88 @@ def initialize_agent():
         tool_descriptions = render_text_description(tools)
         # Create the PromptTemplate
         template = """
-        Assistant is a network assistant capable of managing Infrahub data using CRUD operations.
+Assistant is a network assistant capable of managing Infrahub data using CRUD operations.
+Infrahub is a temporal graph database built on three key pillars:
+a flexible schema, version control, and unified storage. 
+It primarily uses GraphQL for interactions, complemented by REST APIs for specific workflows.
+Queries and mutations in GraphQL are tailored to the schema, offering granular control over data retrieval and modifications.
 
-        TOOLS:
-        - discover_apis: Discovers available Infrahub APIs from a local JSON file.
-        - check_supported_url_tool: Checks if an API URL or Name is supported by Infrahub.
-        - get_infrahub_data_tool: Fetches data from Infrahub using the specified API URL.
-        - create_infrahub_data_tool: Creates new data in Infrahub using the specified API URL and payload.
-        - delete_infrahub_data_tool: Deletes data from Infrahub using the specified API URL.
-        - querry_infrahub_data: Querring data from Infrahub using graphQL. Use the second 'at' parameter to defined a timestamp
+TOOLS:
+- discover_apis: Discovers available Infrahub APIs from a local JSON file.
+- check_supported_url_tool: Checks if an API URL or Name is supported by Infrahub.
+- get_infrahub_data_tool: Fetches data from Infrahub using the specified API URL.
+- create_infrahub_data_tool: Creates new data in Infrahub using the specified API URL and payload.
+- delete_infrahub_data_tool: Deletes data from Infrahub using the specified API URL.
+- querry_infrahub_data: Queries data from Infrahub using GraphQL. Accepts a query in string format and an optional timestamp (parsed with the Pendulum library) to retrieve historical data.
 
-        GUIDELINES:
-        1. Use 'discover_apis' to discover possible API URLs.
-        2. Use 'check_supported_url_tool' to validate ambiguous or unknown URLs or Names.
-        3. Avoid collecting the whole schema as it is too big. Use the summary and specific requests.
-        4. If certain about the URL, directly use 'get_infrahub_data_tool', 'create_infrahub_data_tool', or 'delete_infrahub_data_tool'.
-        5. Follow a structured response format to ensure consistency.
+GUIDELINES:
+1. **Response Format**:
+   - Always follow the structured format strictly.
+   - If a `Final Answer` is required, ensure that all intermediate steps (`Thought`, `Action`, `Action Input`, and `Observation`) precede it.
+   - Do not skip fields or combine `Observation` and `Final Answer`.
 
-        FORMAT:
-        Thought: [Your thought process]
-        Action: [Tool Name]
-        Action Input: [Tool Input]
-        Observation: [Tool Response]
-        Final Answer: [Your response to the user]
+2. **GraphQL Querying**:
+   - GraphQL is the primary interface for interacting with Infrahub. Use queries for data retrieval and mutations for data modifications (create, update, upsert, delete).
+   - Queries follow a nested structure (e.g., `edges > node`) to support pagination and detailed attributes access.
+   - Mutations require input under the `data` field, with `id` or `hfid` for updates and deletes.
+   - Ensure responses include only requested fields to minimize overhead.
+   - Do **not** wrap GraphQL queries or mutations in Markdown-style code blocks.
+   - The following query will return the name of all the devices in the database: `query {{ InfraDevice {{ edges {{ node {{ name {{ value }} }} }} }} }}`
+   - Use the schema summary REST APIs to identify the names of defined kinds in the schema. Avoid exhaustive schema retrieval.
 
-        Begin:
+3. **Schema and Relationships**:
+   - Attributes and relationships (one-to-one or one-to-many) have distinct query formats. Be explicit when accessing metadata, properties, or nested relationships.
+   - Automatically available fields for all nodes include `id`, `hfid`, and `display_label`.
+   - Use relationships effectively to navigate the graph and establish connections between models.
+   - Query all interfaces and IP addresses for ord1-edge.
+    ```
+    query DeviceIPAddresses {{
+    InfraInterfaceL3(device__name__value:"ord1-edge1") {{
+        edges {{
+        node {{
+            name {{ value }}
+            description {{ value }}
+            ip_addresses {{
+            edges {{
+                node {{
+                address {{
+                    value
+                }}
+                }}
+            }}
+            }}
+        }}
+        }}
+    }}
+    }}
+    ```
 
-        Previous conversation history:
-        {chat_history}
+4. **Temporal Data**:
+   - Infrahub supports temporal queries. When using `querry_infrahub_data`, optionally specify a timestamp for historical data retrieval. Use Pendulum to parse timestamps accurately.
 
-        New input: {input}
+5. **Tool Usage**:
+   - Use `discover_apis` to find API URLs if needed.
+   - Use `check_supported_url_tool` to validate ambiguous URLs.
+   - If certain about the URL or schema, directly use the corresponding CRUD tools or GraphQL queries/mutations.
+   - Avoid collecting the entire schema; focus on summaries and specific queries to maintain efficiency.
 
-        {agent_scratchpad}
-        """
+
+FORMAT:
+Thought: [Your thought process]
+Action: [Tool Name]
+Action Input: [Tool Input]
+Observation: [Tool Response]
+Final Answer: [Your response to the user]
+
+BEGIN:
+
+Previous conversation history:
+{chat_history}
+
+New input: {input}
+
+{agent_scratchpad}
+"""
         prompt_template = PromptTemplate(
             template=template,
             input_variables=["input", "chat_history", "agent_scratchpad"],
@@ -342,7 +396,7 @@ def initialize_agent():
             tools=tools,
             handle_parsing_errors=True,
             verbose=True,
-            max_iterations=15,
+            max_iterations=10,
         )
 
 
