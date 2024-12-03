@@ -16,6 +16,9 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain_core.tools import tool, render_text_description
 from infrahub_sdk import Config, InfrahubClientSync
+from graphql import parse, validate, GraphQLSyntaxError, build_schema
+
+
 import urllib3
 
 # Configure logging
@@ -74,6 +77,15 @@ class InfrahubController:
     def graphql(self, query: str, at: str):
         data = self.client.execute_graphql(query=query, at=at)
         return data
+
+    def graphql_schema(self):
+        response = requests.get(
+            f"{self.infrahub}/schema.graphql",
+            headers=self.headers,
+            verify=False,
+        )
+        response.raise_for_status()
+        return response.text
 
 
 def _load_openapi(file_path=config.open_api_file):
@@ -209,16 +221,25 @@ def delete_infrahub_data_tool(api_url: str) -> dict:
 def query_infrahub_data(query: str, timestamp: str = None) -> dict:
     """Use GraphQL to query data from infrahub. Use at to specify a Timestamp"""
 
-    # Need a better way to validate query syntax
     if "`" in query:
-        return {"error": f"Do **not** wrap GraphQL queries or mutations in Markdown-style code blocks."}
-
+        return {
+            "error": f"Do **not** wrap GraphQL queries or mutations in Markdown-style code blocks."
+        }
     try:
         infrahub_controller = InfrahubController(
             infrahub_url=os.getenv("INFRAHUB_URL"),
             api_token=os.getenv("INFRAHUB_TOKEN"),
         )
+        parsed_query = parse(query)
+        schema_definition = infrahub_controller.graphql_schema()
+        schema = build_schema(schema_definition)
+        if errors := validate(schema, parsed_query):
+            return {
+                "error": f"query validation found following errors: {[str(e) for e in errors]}"
+            }
         return infrahub_controller.graphql(query, timestamp)
+    except GraphQLSyntaxError as e:
+        return {"error": f"Error parsing the graphQL query: {str(e)}"}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
 
