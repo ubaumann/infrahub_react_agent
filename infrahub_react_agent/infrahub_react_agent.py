@@ -272,7 +272,8 @@ def process_agent_response(response):
 
 
 def configure_page():
-    st.title("🦦 Infrahub 🦦 Configuration")
+    st.set_page_config(page_icon="🦦")
+    st.title("🦦 :blue[Infrahub] 🦦 Configuration", )
     base_url = st.text_input("Infrahub URL", placeholder="http://localhost:8000")
     api_token = st.text_input(
         "Infrahub API Token", type="password", placeholder="Your API Token"
@@ -422,7 +423,7 @@ New input: {input}
 
 
 def chat_page():
-    st.title("Chat with 🦦 Infrahub 🦦 AI Agent")
+    st.title("Chat with 🦦 blue[Infrahub] 🦦 AI Agent")
     user_input = st.text_input("Ask otto a question:", key="user_input")
 
     # Ensure the agent is initialized
